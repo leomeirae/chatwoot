@@ -1,0 +1,56 @@
+{
+  "mcpServers": {
+    "@smithery-ai-server-sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/server-sequential-thinking",
+        "--config",
+        "\"{}\""
+      ]
+    },
+    "mcp-server-firecrawl": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "firecrawl-mcp"
+      ],
+      "env": {
+        "FIRECRAWL_API_KEY": "fc-da686e9d4c3a4f9d9418dbb2f9077d03"
+      }
+    },
+    "server-sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/server-sequential-thinking",
+        "--key",
+        "6917489a-a238-4dcf-8602-7fbf5dad4de7"
+      ]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/brave-search",
+        "--config",
+        "\"{\\\"braveApiKey\\\":\\\"BSA9RV6Zu2keN3Dg8mIaI2m37PLswhy\\\"}\""
+      ]
+    },
+    "portainer": {
+      "command": "portainer-mcp",
+      "args": [
+        "-server",
+        "https://portainer.darwinai.com.br",
+        "-token",
+        "ptr_WvmGnkQLUxr5pZhxdMHndqN9EJ+zfeUWULLtdE2swj0="
+      ]
+    }
+  }
+} 
