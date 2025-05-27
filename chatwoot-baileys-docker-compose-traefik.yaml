@@ -1,0 +1,176 @@
+version: '3'
+
+# Arquivo docker-compose.yaml para Chatwoot com integração Baileys API + Traefik
+# VERSÃO TRAEFIK: Configurado para usar Traefik com SSL automático
+#
+# IMPORTANTE: Verifique se todos os valores de senha e chaves estão corretos.
+
+networks:
+  darwinai:
+    external: true
+  chatwoot:
+    driver: overlay
+
+services:
+  rails:
+    # Imagem modificada do Chatwoot que inclui o provedor Baileys
+    image: 'ghcr.io/fazer-ai/chatwoot:latest'
+    volumes:
+      - 'chatwoot_storage:/app/storage' # Volume nomeado para persistência
+    depends_on:
+      - postgres
+      - redis
+      - baileys-api # Adicionado dependência da API Baileys
+    environment:
+      - NODE_ENV=production
+      - RAILS_ENV=production
+      - INSTALLATION_ENV=docker
+      - DEFAULT_LOCALE=pt_BR # Ajuste o locale se necessário
+      - FRONTEND_URL=https://chatwoot.darwinai.com.br # Substitua pela URL pública do seu Chatwoot (ex: https://chat.seudominio.com)
+      - INTERNAL_HOST_URL=http://rails:3000 # Comunicação interna
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USERNAME=chatwoot # Usuário padrão, pode ser alterado
+      - POSTGRES_PASSWORD=007a0a4f17055d346f07ad3d27eff7cb4c1966777bdf7fe56fb1f7515ba1c2f7 # Substitua por uma senha segura para o Postgres
+      - POSTGRES_DATABASE=chatwoot_production # Nome do banco de dados
+      - SECRET_KEY_BASE=a0d6bb3c1cafe810f3cbafd4b8ea6bb917f7d736e9e5d96a5c9a509da372eaf9 # Substitua por uma chave secreta segura (64 caracteres hex)
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee # Substitua pela mesma senha segura definida no serviço Redis
+      # Configurações específicas da integração Baileys
+      - BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME=Baileys # Nome que aparecerá no Chatwoot
+      - BAILEYS_PROVIDER_DEFAULT_URL=http://baileys-api:3025 # URL interna do serviço Baileys API
+      - BAILEYS_PROVIDER_DEFAULT_API_KEY=test123 # Substitua pela mesma chave API definida no serviço baileys-api
+      - BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL=true # Usar URL interna para comunicação
+    # O entrypoint original pode fazer outras coisas, então o mantemos.
+    entrypoint: docker/entrypoints/rails.sh
+    # Adicionamos um comando que força a preparação do DB e depois inicia o servidor.
+    # O entrypoint pode tentar fazer o db:prepare também, mas não deve causar problema.
+    # O importante é que o 'rails s' seja o último processo a rodar para manter o container vivo.
+    command: ["sh", "-c", "bundle exec rails db:prepare && bundle exec rails s -p 3000 -b 0.0.0.0"]
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - darwinai
+      - chatwoot
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.chatwoot.rule=Host(`chatwoot.darwinai.com.br`)"
+        - "traefik.http.routers.chatwoot.entrypoints=websecure"
+        - "traefik.http.routers.chatwoot.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.chatwoot.loadbalancer.server.port=3000"
+        - "traefik.docker.network=darwinai"
+        - "traefik.http.middlewares.chatwoot-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+        - "traefik.http.routers.chatwoot.middlewares=chatwoot-headers"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/"]
+      # Aumentar o start_period para dar tempo para as migrações e inicialização
+      interval: 60s
+      timeout: 20s
+      retries: 10
+      start_period: 120s # Espera 2 minutos antes de começar a verificar
+
+  sidekiq:
+    # Imagem modificada do Chatwoot
+    image: 'ghcr.io/fazer-ai/chatwoot:latest'
+    volumes:
+      - 'chatwoot_storage:/app/storage'
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - NODE_ENV=production
+      - RAILS_ENV=production
+      - INSTALLATION_ENV=docker
+      - FRONTEND_URL=https://chatwoot.darwinai.com.br # Substitua pela URL pública do seu Chatwoot
+      - INTERNAL_HOST_URL=http://rails:3000
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USERNAME=chatwoot
+      - POSTGRES_PASSWORD=007a0a4f17055d346f07ad3d27eff7cb4c1966777bdf7fe56fb1f7515ba1c2f7 # Use a mesma senha do serviço rails
+      - POSTGRES_DATABASE=chatwoot_production
+      - SECRET_KEY_BASE=a0d6bb3c1cafe810f3cbafd4b8ea6bb917f7d736e9e5d96a5c9a509da372eaf9 # Use a mesma chave do serviço rails
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee # Use a mesma senha do serviço Redis
+      # Configurações Baileys (iguais ao serviço rails)
+      - BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME=Baileys
+      - BAILEYS_PROVIDER_DEFAULT_URL=http://baileys-api:3025
+      - BAILEYS_PROVIDER_DEFAULT_API_KEY=test123 # Use a mesma chave API do serviço baileys-api
+      - BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL=true
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    restart: always
+    networks:
+      - chatwoot
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]idekiq'"]
+      interval: 20s
+      timeout: 20s
+      retries: 10
+
+  postgres:
+    image: 'pgvector/pgvector:pg16' # Imagem do Postgres com suporte a pgvector (usado pelo Chatwoot)
+    restart: always
+    volumes:
+      - 'chatwoot_postgres:/var/lib/postgresql/data' # Volume nomeado para persistência do banco
+    environment:
+      - POSTGRES_DB=chatwoot_production
+      - POSTGRES_USER=chatwoot
+      - POSTGRES_PASSWORD=007a0a4f17055d346f07ad3d27eff7cb4c1966777bdf7fe56fb1f7515ba1c2f7 # Use a mesma senha definida nos serviços rails e sidekiq
+    networks:
+      - chatwoot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 20s
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: 'redis:alpine'
+    restart: always
+    command: ["sh", "-c", "redis-server --requirepass \"f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee\""] # Substitua pela senha segura do Redis
+    volumes:
+      - 'chatwoot_redis:/data' # Volume nomeado para persistência do Redis
+    environment:
+      - REDIS_PASSWORD=f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee # Defina a senha aqui também
+    networks:
+      - chatwoot
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -h localhost -p 6379 -a \"f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee\" ping | grep PONG"] # Verifique a senha no healthcheck
+      interval: 20s
+      timeout: 20s
+      retries: 10
+
+  baileys-api:
+    # Imagem da API Baileys fornecida por fazer-ai
+    image: "ghcr.io/fazer-ai/baileys-api:latest"
+    volumes:
+      # Monta o mesmo volume de storage para possível compartilhamento de mídia no futuro, se necessário
+      - "chatwoot_storage:/app/storage"
+    depends_on:
+      - redis # Depende do Redis para armazenamento de sessão
+    environment:
+      - NODE_ENV=production
+      - PORT=3025 # Porta interna da API Baileys
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=f30b704fc2a538b00252850d0a04ee2b3d461d05a2087ddfdc524b4033ecb9ee # Use a mesma senha do serviço Redis
+      - LOG_LEVEL=info # Nível de log geral (pode ser 'debug' para mais detalhes)
+      - BAILEYS_LOG_LEVEL=warn # Nível de log específico do Baileys (pode ser 'error', 'warn', 'info', 'debug')
+      # A chave API definida aqui DEVE ser a mesma usada nas variáveis BAILEYS_PROVIDER_DEFAULT_API_KEY dos serviços rails e sidekiq
+      - BAILEYS_PROVIDER_DEFAULT_API_KEY=test123 # Defina a chave API segura aqui
+      - BAILEYS_PRINT_QR=true # Define se o QR Code deve ser impresso nos logs do container para conexão inicial
+    command: ["sh", "-c", "bun manage-api-keys create user test123 && bun start"]
+    restart: always
+    networks:
+      - chatwoot
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3025/status | grep OK"]
+      interval: 20s
+      timeout: 20s
+      retries: 10
+
+# Definição dos volumes nomeados para persistência dos dados
+volumes:
+  chatwoot_storage:
+  chatwoot_postgres:
+  chatwoot_redis: 
