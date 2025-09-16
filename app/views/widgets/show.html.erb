@@ -39,5 +39,21 @@
   <body>
     <div id="app" class="h-full"></div>
     <%= yield %>
+    
+    <!-- Facebook SDK Script - Start -->
+    <script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId            : '1075117584659119',
+          autoLogAppEvents : true,
+          xfbml            : true,
+          version          : 'v23.0'
+        });
+      };
+    </script>
+    <script async defer crossorigin="anonymous"
+      src="https://connect.facebook.net/en_US/sdk.js">
+    </script>
+    <!-- Facebook SDK Script - End -->
   </body>
 </html>
