@@ -67,6 +67,22 @@
       }
     </script>
     <% end %>
+    
+    <!-- Facebook SDK Global Configuration -->
+    <script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId            : window.chatwootConfig.fbAppId || '1075117584659119',
+          autoLogAppEvents : true,
+          xfbml            : true,
+          version          : window.chatwootConfig.fbApiVersion || 'v23.0'
+        });
+      };
+    </script>
+    <script async defer crossorigin="anonymous"
+      src="https://connect.facebook.net/en_US/sdk.js">
+    </script>
+    
     <%= vite_client_tag %>
     <%= vite_javascript_tag @application_pack %>
   </head>
