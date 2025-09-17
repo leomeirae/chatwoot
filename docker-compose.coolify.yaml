@@ -2,7 +2,7 @@ version: '3'
 
 services:
   rails:
-    image: 'ghcr.io/fazer-ai/chatwoot:latest'
+    image: 'ghcr.io/leomeirae/chatwoot:latest'
     pull_policy: always
     volumes:
       - 'storage:/app/storage'
@@ -31,6 +31,10 @@ services:
       - MAILER_SENDER_EMAIL=${MAILER_SENDER_EMAIL}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - BRAND_ASSETS_URL=${BRAND_ASSETS_URL}
+      - FB_APP_ID=${FB_APP_ID}
+      - FB_APP_SECRET=${FB_APP_SECRET}
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN}
+      - FACEBOOK_API_VERSION=${FACEBOOK_API_VERSION:-v23.0}
     entrypoint: docker/entrypoints/rails.sh
     command:
       - bundle
@@ -56,7 +60,7 @@ services:
       retries: 10
 
   sidekiq:
-    image: 'ghcr.io/fazer-ai/chatwoot:latest'
+    image: 'ghcr.io/leomeirae/chatwoot:latest'
     pull_policy: always
     volumes:
       - 'storage:/app/storage'
@@ -84,6 +88,10 @@ services:
       - BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL=true
       - MAILER_SENDER_EMAIL=${MAILER_SENDER_EMAIL}
       - RESEND_API_KEY=${RESEND_API_KEY}
+      - FB_APP_ID=${FB_APP_ID}
+      - FB_APP_SECRET=${FB_APP_SECRET}
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN}
+      - FACEBOOK_API_VERSION=${FACEBOOK_API_VERSION:-v23.0}
     command:
       - bundle
       - exec
