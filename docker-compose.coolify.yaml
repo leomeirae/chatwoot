@@ -142,3 +142,8 @@ services:
       interval: 20s
       timeout: 20s
       retries: 10
+
+volumes:
+  storage:
+  postgres:
+  redis:
